@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔔</text></svg>" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Noble Gnomes</title>
+    <link rel="stylesheet" href="/src/style.css" />
+    <script>
+      // Global diagnostic logger visible directly on screen
+      window.__gnomeLog = function(msg, isError) {
+        console.log('[GNOME-BOOT]', msg);
+        const el = document.getElementById('boot-status');
+        if (el) {
+          el.innerHTML += '<div style="color:' + (isError ? '#ef4444' : '#86efac') + '">' + msg + '</div>';
+        }
+      };
+
+      window.addEventListener('error', function(e) {
+        window.__gnomeLog('❌ JS Error: ' + e.message + ' (' + (e.filename ? e.filename.split('/').pop() : 'inline') + ':' + e.lineno + ')', true);
+        const screen = document.getElementById('loading-screen');
+        if (screen) screen.style.display = 'flex';
+      });
+
+      window.addEventListener('unhandledrejection', function(e) {
+        window.__gnomeLog('❌ Promise Rejection: ' + (e.reason ? (e.reason.message || e.reason) : 'Unknown'), true);
+        const screen = document.getElementById('loading-screen');
+        if (screen) screen.style.display = 'flex';
+      });
+
+      // Safety fallback to dismiss loading screen unconditionally after 2.2 seconds
+      setTimeout(function() {
+        const loader = document.getElementById('loading-screen');
+        if (loader) {
+          loader.style.transition = 'opacity 0.4s ease';
+          loader.style.opacity = '0';
+          setTimeout(() => { if (loader && loader.parentNode) loader.remove(); }, 450);
+        }
+      }, 2200);
+    </script>
+  </head>
+  <body>
+    <!-- Initial Loading & Diagnostic Overlay (removed once Three.js renders first frame or timeout) -->
+    <div id="loading-screen" style="position:fixed;inset:0;background:#0d1f18;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;font-family:sans-serif;text-align:center;padding:24px;">
+      <div style="font-size:48px;margin-bottom:12px;animation:bounce 1s infinite alternate;">🔔🚤</div>
+      <h2 style="font-size:32px;font-weight:900;letter-spacing:3px;background:linear-gradient(180deg,#fff,#fef08a,#f59e0b);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin:0 0 10px 0;text-transform:uppercase;">Noble Gnomes</h2>
+      <p style="font-size:14px;color:#a7f3d0;margin-bottom:16px;">Loading garden pond & sound engine...</p>
+      <div id="boot-status" style="font-family:monospace;font-size:12px;text-align:left;background:rgba(0,0,0,0.5);padding:12px 18px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);max-width:90%;width:420px;min-height:70px;line-height:1.6;">
+        <div>🌱 Initializing page...</div>
+      </div>
+      <button onclick="document.getElementById('loading-screen')?.remove()" style="margin-top:16px;padding:8px 18px;background:rgba(56,189,248,0.2);border:1px solid rgba(56,189,248,0.5);color:#bae6fd;border-radius:999px;cursor:pointer;font-size:12px;font-weight:bold;letter-spacing:1px;transition:all 0.2s ease;">
+        ENTER EXPEDITION ➔
+      </button>
+    </div>
+
+    <div id="app-container"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,16 @@
+# Dependencies
+node_modules/
+
+# Production Build Output
+dist/
+
+# Scratch & Temporary Test Files
+scratch/
+*.log
+
+# OS & Editor Metadata
+.DS_Store
+Thumbs.db
+Desktop.ini
+.vscode/
+.idea/
