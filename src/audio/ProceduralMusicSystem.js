@@ -31,12 +31,12 @@ export class ProceduralMusicSystem {
     this.current16thStep = 0;
     this.timerID = null;
 
-    // Harmonic Chord Progressions (Liquid minor chords: Dm9, Bbmaj7, Gm9, Asus4)
+    // Harmonic Chord Progressions (Deep atmospheric liquid chords: Fmaj9, Dm9, Am9, Gsus4)
     this.chordProgression = [
+      [174.61, 220.00, 261.63, 329.63, 392.00], // Fmaj9 (dreamy, floating)
       [146.83, 174.61, 220.00, 261.63, 329.63], // Dm9
-      [116.54, 146.83, 174.61, 220.00, 261.63], // Bbmaj7
-      [98.00, 116.54, 146.83, 174.61, 220.00],  // Gm9
-      [110.00, 146.83, 164.81, 220.00, 293.66]  // Asus4
+      [110.00, 164.81, 220.00, 261.63, 329.63], // Am9 (warm, introspective)
+      [98.00, 146.83, 196.00, 246.94, 293.66]   // Gsus4 / Gmaj9
     ];
     this.currentBar = 0;
 
@@ -63,6 +63,36 @@ export class ProceduralMusicSystem {
     } else {
       this.filterNode.connect(this.ctx.destination);
     }
+
+    // Warm vintage vinyl / water tape noise bed for deep atmospheric depth
+    this.initAtmosphericHiss();
+  }
+
+  initAtmosphericHiss() {
+    if (!this.ctx) return;
+    const bufSize = this.ctx.sampleRate * 2.0;
+    const buf = this.ctx.createBuffer(1, bufSize, this.ctx.sampleRate);
+    const out = buf.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) {
+      out[i] = (Math.random() * 2 - 1) * 0.008;
+    }
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = buf;
+    noise.loop = true;
+
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(3200, this.ctx.currentTime);
+    filter.Q.setValueAtTime(0.8, this.ctx.currentTime);
+
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0.015, this.ctx.currentTime);
+
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.musicGain);
+
+    noise.start();
   }
 
   makeDistortionCurve(amount = 20) {
@@ -199,40 +229,39 @@ export class ProceduralMusicSystem {
   scheduleLiquidDnbStep(step, time) {
     const root = this.chordProgression[this.currentBar][0];
 
-    // Standard rolling liquid 2-step / amen pattern:
-    // Kicks: 0, 10
+    // 1. Soft rounded Liquid Kick (steps 0, 10)
     if (step === 0 || step === 10) {
-      this.playKick(time, 0.45);
+      this.playLiquidKick(time, 0.38);
     }
-    // Main Snares: 4, 12
+
+    // 2. Brushed Liquid Snare on beats 4 & 12
     if (step === 4 || step === 12) {
-      this.playSnare(time, 0.40, false);
-    }
-    // Ghost Snares: 7, 14 (in threat mode add 2, 15)
-    if (step === 7 || step === 14 || (this.mode === 'THREAT' && (step === 2 || step === 15))) {
-      this.playSnare(time, 0.15, true);
+      this.playBrushedSnare(time, 0.35, false);
     }
 
-    // Rolling Hi-hats: every 16th or 8th depending on threat
-    if (step % 2 === 0 || this.threatLevel > 0.4) {
-      const isOpen = step === 2 || step === 6 || step === 10 || step === 14;
-      this.playHiHat(time, isOpen ? 0.18 : 0.10, isOpen);
+    // 3. Shuffling Ghost Snares (steps 7, 14, and 15)
+    if (step === 7 || step === 14 || step === 15) {
+      this.playBrushedSnare(time, 0.12, true);
     }
 
-    // Reese Bassline (warm detuned saw with low-pass sweep)
+    // 4. Silky continuous 16th-note Shaker / Ride shuffle
+    const isAccent = step % 4 === 2;
+    this.playLiquidShaker(time, isAccent ? 0.14 : 0.08, isAccent);
+
+    // 5. Deep Floating Liquid Sub-Glide & Warm Reese
     if (step === 0) {
-      this.playReeseBass(root * 0.5, time, 60.0 / this.bpm * 1.5, 0.28, this.threatLevel);
+      this.playDeepLiquidBass(root * 0.5, time, 60.0 / this.bpm * 1.6, 0.28, this.threatLevel);
     } else if (step === 6) {
-      this.playReeseBass(root * 0.56, time, 60.0 / this.bpm * 1.2, 0.25, this.threatLevel);
-    } else if (step === 11) {
-      this.playReeseBass(root * 0.5, time, 60.0 / this.bpm * 1.1, 0.26, this.threatLevel);
+      this.playDeepLiquidBass(root * 0.56, time, 60.0 / this.bpm * 1.2, 0.26, this.threatLevel);
+    } else if (step === 10) {
+      this.playDeepLiquidBass(root * 0.5, time, 60.0 / this.bpm * 1.4, 0.28, this.threatLevel);
     }
 
-    // Arp flourish during tranquil breaks
-    if (step % 4 === 2 && this.threatLevel < 0.6) {
+    // 6. Floating Rhodes / Electric Piano arpeggio echo
+    if (step === 2 || step === 8 || step === 13) {
       const chord = this.chordProgression[this.currentBar];
-      const note = chord[Math.floor(Math.random() * chord.length)] * 2.0;
-      this.playMarimbaPing(note, time, 0.08);
+      const note = chord[(step % chord.length)] * 2.0;
+      this.playRhodesPing(note, time, 0.12);
     }
   }
 
@@ -268,6 +297,172 @@ export class ProceduralMusicSystem {
   }
 
   // --- INSTRUMENT SYNTHESIS VOICES ---
+
+  // --- LIQUID DNB CUSTOM VOICES (Atmospheric Sound Territory Style) ---
+
+  // Soft rounded liquid kick (gentle thud, non-intrusive)
+  playLiquidKick(time, gainVal = 0.35) {
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(120, time);
+    osc.frequency.exponentialRampToValueAtTime(42, time + 0.12);
+
+    gain.gain.setValueAtTime(gainVal, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.14);
+
+    osc.connect(gain);
+    gain.connect(this.musicGain);
+
+    osc.start(time);
+    osc.stop(time + 0.15);
+  }
+
+  // Brushed liquid snare (warm tone + soft high noise tail)
+  playBrushedSnare(time, gainVal = 0.30, isGhost = false) {
+    const osc = this.ctx.createOscillator();
+    const oscGain = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(175, time);
+    osc.frequency.exponentialRampToValueAtTime(80, time + (isGhost ? 0.04 : 0.08));
+
+    oscGain.gain.setValueAtTime(gainVal * 0.45, time);
+    oscGain.gain.exponentialRampToValueAtTime(0.001, time + (isGhost ? 0.05 : 0.10));
+
+    osc.connect(oscGain);
+    oscGain.connect(this.musicGain);
+    osc.start(time);
+    osc.stop(time + (isGhost ? 0.06 : 0.11));
+
+    // Brushed snare noise
+    const bufSize = Math.floor(this.ctx.sampleRate * (isGhost ? 0.05 : 0.14));
+    const noiseBuf = this.ctx.createBuffer(1, bufSize, this.ctx.sampleRate);
+    const data = noiseBuf.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = noiseBuf;
+
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(isGhost ? 2800 : 2200, time);
+    filter.Q.setValueAtTime(1.4, time);
+
+    const noiseGain = this.ctx.createGain();
+    noiseGain.gain.setValueAtTime(gainVal * 0.65, time);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, time + (isGhost ? 0.05 : 0.14));
+
+    noise.connect(filter);
+    filter.connect(noiseGain);
+    noiseGain.connect(this.musicGain);
+
+    noise.start(time);
+    noise.stop(time + (isGhost ? 0.06 : 0.15));
+  }
+
+  // Silky 16th shaker / ride shuffle
+  playLiquidShaker(time, gainVal = 0.08, isAccent = false) {
+    const dur = isAccent ? 0.06 : 0.035;
+    const bufSize = Math.floor(this.ctx.sampleRate * dur);
+    const noiseBuf = this.ctx.createBuffer(1, bufSize, this.ctx.sampleRate);
+    const data = noiseBuf.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = noiseBuf;
+
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'highpass';
+    filter.frequency.setValueAtTime(6500, time);
+
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(gainVal, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + dur);
+
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.musicGain);
+
+    noise.start(time);
+    noise.stop(time + dur + 0.01);
+  }
+
+  // Deep floating sub-glide bass with subtle warm saturated Reese undertone
+  playDeepLiquidBass(freq, time, duration, gainVal = 0.28, threat = 0.1) {
+    // Pure round sub oscillator
+    const subOsc = this.ctx.createOscillator();
+    const subGain = this.ctx.createGain();
+    subOsc.type = 'sine';
+    subOsc.frequency.setValueAtTime(freq, time);
+    // Gentle liquid pitch glide down 2Hz over duration
+    subOsc.frequency.linearRampToValueAtTime(freq * 0.98, time + duration);
+
+    subGain.gain.setValueAtTime(0.001, time);
+    subGain.gain.linearRampToValueAtTime(gainVal * 0.85, time + 0.06);
+    subGain.gain.exponentialRampToValueAtTime(0.001, time + duration);
+
+    subOsc.connect(subGain);
+    subGain.connect(this.musicGain);
+    subOsc.start(time);
+    subOsc.stop(time + duration + 0.05);
+
+    // Subtle warm stereo chorused layer
+    const sawOsc = this.ctx.createOscillator();
+    const sawFilter = this.ctx.createBiquadFilter();
+    const sawGain = this.ctx.createGain();
+
+    sawOsc.type = 'sawtooth';
+    sawOsc.frequency.setValueAtTime(freq + 1.2, time);
+
+    sawFilter.type = 'lowpass';
+    sawFilter.frequency.setValueAtTime(180 + threat * 260, time);
+    sawFilter.Q.setValueAtTime(1.8, time);
+
+    sawGain.gain.setValueAtTime(0.001, time);
+    sawGain.gain.linearRampToValueAtTime(gainVal * 0.25, time + 0.08);
+    sawGain.gain.exponentialRampToValueAtTime(0.001, time + duration);
+
+    sawOsc.connect(sawFilter);
+    sawFilter.connect(sawGain);
+    sawGain.connect(this.musicGain);
+
+    sawOsc.start(time);
+    sawOsc.stop(time + duration + 0.05);
+  }
+
+  // Floating Rhodes Electric Piano echo
+  playRhodesPing(freq, time, gainVal = 0.12) {
+    const osc = this.ctx.createOscillator();
+    const osc2 = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    const filter = this.ctx.createBiquadFilter();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, time);
+
+    // Bell chime harmonic ratio (octave + minor third overtone)
+    osc2.type = 'triangle';
+    osc2.frequency.setValueAtTime(freq * 2.756, time);
+
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(1400, time);
+    filter.frequency.linearRampToValueAtTime(600, time + 0.45);
+
+    gain.gain.setValueAtTime(0.001, time);
+    gain.gain.linearRampToValueAtTime(gainVal, time + 0.012);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.48);
+
+    osc.connect(filter);
+    osc2.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.musicGain);
+
+    osc.start(time);
+    osc2.start(time);
+    osc.stop(time + 0.50);
+    osc2.stop(time + 0.50);
+  }
 
   playKick(time, gainVal = 0.4) {
     const osc = this.ctx.createOscillator();
