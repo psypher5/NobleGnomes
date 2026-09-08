@@ -49,6 +49,7 @@ class NobleGnomesGame {
     this.currentNode = null;
 
     this.sounds = sounds;
+    window.sounds = sounds;
     window.game = this;
 
     // 1. Core Engine & Scene
@@ -572,12 +573,19 @@ class NobleGnomesGame {
     this.isIntro = false;
     this.hud.hideIntro(true);
 
+    if (sounds.musicDirector) {
+      sounds.musicDirector.playTrack('EXPLORATION', 1.4);
+    }
+
     this.hud.showHint(`⚓ Arrived at ${node.name}! Cleanse the pond & deposit scum at pier!`, '#38bdf8');
   }
 
   returnToMap(isVictory = false) {
     sounds.stopEngine();
     this.state = 'MAP';
+    if (sounds.musicDirector) {
+      sounds.musicDirector.playTrack('MENU', 1.4);
+    }
     this.hud.hide();
     this.hud.clearBanners();
     this.pier.resetLevel();
@@ -622,6 +630,9 @@ class NobleGnomesGame {
   returnToMenu() {
     sounds.stopEngine();
     this.state = 'MENU';
+    if (sounds.musicDirector) {
+      sounds.musicDirector.playTrack('MENU', 1.4);
+    }
     this.worldMap.hide();
     this.hud.hide();
     this.biomeManager.applyBiome('GARDEN_POND');
@@ -825,6 +836,9 @@ class NobleGnomesGame {
     // 0. MENU / MAP OVERWORLD STATE: Orbit camera around lush pond diorama in background
     if (this.state === 'MENU' || this.state === 'MAP') {
       sounds.stopEngine();
+      if (sounds.musicDirector) {
+        sounds.musicDirector.updateGameState({ gameState: this.state, dt });
+      }
       const orbitSpeed = this.state === 'MENU' ? 0.035 : 0.05;
       const angle = elapsedTime * orbitSpeed;
       this.engine.camera.position.set(Math.cos(angle) * 32, 16, Math.sin(angle) * 32);
@@ -1106,6 +1120,18 @@ class NobleGnomesGame {
       this.playerExp,
       this.expToNextLevel
     );
+
+    // Update dynamic reactive music director with live gameplay state
+    if (sounds.musicDirector) {
+      sounds.musicDirector.updateGameState({
+        gameState: this.isOutro ? 'OUTRO' : 'PLAYING',
+        isBossAlive: Boolean(boss && !boss.isDead),
+        isBossShielded: Boolean(boss && boss.isShielded),
+        bossPhase: (boss && typeof boss.getBossPhase === 'function') ? boss.getBossPhase() : 1,
+        slimeRatio: this.slimeManager.totalSpawned ? remaining / this.slimeManager.totalSpawned : 0.5,
+        dt
+      });
+    }
 
     // 7. Multi-Objective Expedition Victory & Outro Cinematic Trigger:
     // When pond is cleared (all slimes defeated & gnomes rescued), docking at the pier triggers the cinematic outro!

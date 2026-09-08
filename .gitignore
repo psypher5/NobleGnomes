@@ -7,6 +7,7 @@ dist/
 # Scratch & Temporary Test Files
 scratch/
 *.log
+mp3/
 
 # OS & Editor Metadata
 .DS_Store

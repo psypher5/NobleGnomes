@@ -1,3 +1,5 @@
+import { MusicDirector } from './MusicDirector.js';
+
 /**
  * Procedural audio synthesizer using Web Audio API.
  * Generates rich acoustic bell chimes, liquid splashes, bubble pops, and engine putters without external assets.
@@ -17,6 +19,9 @@ export class SoundSynthesizer {
     this.lastBellTime = 0;
     this.masterCompressor = null;
     this.masterGain = null;
+
+    // Dynamic Interactive Music Director
+    this.musicDirector = null;
   }
 
   init() {
@@ -37,9 +42,17 @@ export class SoundSynthesizer {
 
       this.masterCompressor.connect(this.masterGain);
       this.masterGain.connect(this.ctx.destination);
+
+      if (!this.musicDirector) {
+        this.musicDirector = new MusicDirector(this);
+        this.musicDirector.init();
+      }
     }
     if (this.ctx.state === 'suspended') {
       this.ctx.resume();
+    }
+    if (this.musicDirector && !this.musicDirector.isInitialized) {
+      this.musicDirector.init();
     }
   }
 
@@ -47,6 +60,9 @@ export class SoundSynthesizer {
     this.isMuted = !this.isMuted;
     if (this.isMuted && this.isEngineRunning) {
       this.stopEngine();
+    }
+    if (this.musicDirector) {
+      this.musicDirector.setMuted(this.isMuted);
     }
     return this.isMuted;
   }
