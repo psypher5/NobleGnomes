@@ -253,12 +253,7 @@ class NobleGnomesGame {
   skipIntro() {
     if (!this.isIntro) return;
     this.isIntro = false;
-
-    // Ensure bell is struck if not yet triggered
-    if (!this.introBellStruck) {
-      this.introBellStruck = true;
-      this.triggerBell();
-    }
+    this.introBellStruck = true;
 
     this.tugboat.finishBoarding();
     this.cameraManager.finishIntro(this.tugboat.position, this.tugboat.heading);
@@ -392,6 +387,11 @@ class NobleGnomesGame {
           const cards = document.querySelectorAll('.draft-card');
           if (cards[2]) cards[2].click();
         }
+        return;
+      }
+
+      // Only process gameplay actions (steering, bell strikes, abilities) when in active gameplay
+      if (this.state !== 'PLAYING') {
         return;
       }
 
@@ -778,7 +778,6 @@ class NobleGnomesGame {
       const bellWorldPos = this.tugboat.getBellWorldPosition();
       const radiusBonus = this.tugboat.shockwaveRadiusBonus || 1.0;
       this.rippleSystem.triggerBellShockwave(bellWorldPos, 10.5 * radiusBonus, 13.0, 0.85, false);
-      this.tugboat.tootWhistle();
 
       // Acoustic vibration shakes off loose surface algae
       if (this.tugboat.algaeLevel > 0) {
