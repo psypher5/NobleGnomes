@@ -306,7 +306,6 @@ export class UpgradeSystem {
     if (!spell || spell.currentCooldown > 0) return false;
 
     sounds.init();
-    sounds.startEngine();
 
     const boat = this.game.tugboat;
 

@@ -360,7 +360,6 @@ class NobleGnomesGame {
 
     window.addEventListener('keydown', (e) => {
       sounds.init();
-      sounds.startEngine();
       this.activeKeys.add(e.code);
 
       // Any navigation or action key skips intro immediately
@@ -507,7 +506,6 @@ class NobleGnomesGame {
 
     window.addEventListener('pointerdown', (e) => {
       sounds.init();
-      sounds.startEngine();
 
       if (this.state === 'PLAYING') {
         if (this.isIntro) {
@@ -542,7 +540,6 @@ class NobleGnomesGame {
 
   sailToNode(node) {
     sounds.init();
-    sounds.startEngine();
 
     this.currentNode = node;
     this.state = 'PLAYING';
@@ -579,6 +576,7 @@ class NobleGnomesGame {
   }
 
   returnToMap(isVictory = false) {
+    sounds.stopEngine();
     this.state = 'MAP';
     this.hud.hide();
     this.hud.clearBanners();
@@ -622,6 +620,7 @@ class NobleGnomesGame {
   }
 
   returnToMenu() {
+    sounds.stopEngine();
     this.state = 'MENU';
     this.worldMap.hide();
     this.hud.hide();
@@ -762,7 +761,6 @@ class NobleGnomesGame {
 
   cleanBoat() {
     sounds.init();
-    sounds.startEngine();
 
     const res = this.tugboat.cleanBoat();
     if (res.cleaned) {
@@ -774,7 +772,6 @@ class NobleGnomesGame {
 
   triggerBell() {
     sounds.init();
-    sounds.startEngine();
 
     const struck = this.tugboat.bell.strike();
     if (struck) {
@@ -797,7 +794,6 @@ class NobleGnomesGame {
    */
   triggerBigBellHit() {
     sounds.init();
-    sounds.startEngine();
 
     // 1. Crew check
     if (!this.crewManager.allRescued()) {
@@ -829,6 +825,7 @@ class NobleGnomesGame {
 
     // 0. MENU / MAP OVERWORLD STATE: Orbit camera around lush pond diorama in background
     if (this.state === 'MENU' || this.state === 'MAP') {
+      sounds.stopEngine();
       const orbitSpeed = this.state === 'MENU' ? 0.035 : 0.05;
       const angle = elapsedTime * orbitSpeed;
       this.engine.camera.position.set(Math.cos(angle) * 32, 16, Math.sin(angle) * 32);
@@ -859,6 +856,7 @@ class NobleGnomesGame {
     // 0b. DRAFTING PAUSE STATE: Tome of the Lilypad Card Selection
     // Fully pauses all gameplay simulation (slimes, boss attacks, rock projectiles, boat damage)
     if (this.isDrafting) {
+      sounds.stopEngine();
       this.tugboat.speed = 0;
       this.cameraManager.update(0, this.tugboat.position, this.tugboat.heading, 0);
 
@@ -876,6 +874,7 @@ class NobleGnomesGame {
 
     // 1. Handle Intro Cinematic or standard Player Control & Camera Follow
     if (this.isIntro) {
+      sounds.stopEngine();
       this.introElapsed += dt;
       const progress = Math.min(1.0, this.introElapsed / this.introDuration);
 
@@ -891,6 +890,7 @@ class NobleGnomesGame {
         this.skipIntro();
       }
     } else if (this.isOutro) {
+      sounds.stopEngine();
       this.outroTimer += dt;
       const progress = Math.min(1.0, this.outroTimer / this.outroDuration);
 
@@ -912,6 +912,15 @@ class NobleGnomesGame {
     } else {
       this.tugboat.update(dt, this.input, elapsedTime);
       this.cameraManager.update(dt, this.tugboat.position, this.tugboat.heading, this.tugboat.speed);
+
+      // Dynamic engine audio: only putters when boat is moving or player is throttling
+      if (!this.isDrafting && this.state === 'PLAYING') {
+        const isThrottling = Boolean(this.input.forward || this.input.backward);
+        const speedRatio = Math.abs(this.tugboat.speed) / (this.tugboat.maxSpeed || 8.8);
+        sounds.updateEngineSpeed(speedRatio, isThrottling, this.tugboat.algaeLevel || 0);
+      } else {
+        sounds.stopEngine();
+      }
     }
 
     // 3. Update Environment with boat dynamics & wake interaction

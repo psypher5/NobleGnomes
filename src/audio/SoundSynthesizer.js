@@ -7,6 +7,8 @@ export class SoundSynthesizer {
     this.ctx = null;
     this.isMuted = false;
     this.engineOsc = null;
+    this.engineLfo = null;
+    this.engineFilter = null;
     this.engineGain = null;
     this.isEngineRunning = false;
 
@@ -43,8 +45,8 @@ export class SoundSynthesizer {
 
   toggleMute() {
     this.isMuted = !this.isMuted;
-    if (this.engineGain && this.ctx) {
-      this.engineGain.gain.setValueAtTime(this.isMuted ? 0 : 0.04, this.ctx.currentTime);
+    if (this.isMuted && this.isEngineRunning) {
+      this.stopEngine();
     }
     return this.isMuted;
   }
@@ -419,38 +421,110 @@ export class SoundSynthesizer {
     try {
       const t = this.ctx.currentTime;
       this.engineOsc = this.ctx.createOscillator();
+      this.engineLfo = this.ctx.createOscillator();
+      const lfoGain = this.ctx.createGain();
+      this.engineFilter = this.ctx.createBiquadFilter();
       this.engineGain = this.ctx.createGain();
 
-      // Low putter rumble
+      // Warm acoustic low-pass filter: removes harsh electrical triangle buzz/hum
+      this.engineFilter.type = 'lowpass';
+      this.engineFilter.frequency.setValueAtTime(260, t);
+      this.engineFilter.Q.setValueAtTime(1.1, t);
+
+      // Low wooden/brass steam chug fundamental (48Hz idle)
       this.engineOsc.type = 'triangle';
-      this.engineOsc.frequency.setValueAtTime(55, t);
+      this.engineOsc.frequency.setValueAtTime(48, t);
 
-      // Amplitude modulation for "chug chug" rhythm
-      const lfo = this.ctx.createOscillator();
-      const lfoGain = this.ctx.createGain();
-      lfo.frequency.setValueAtTime(5.5, t);
-      lfoGain.gain.setValueAtTime(20, t);
-      lfo.connect(this.engineOsc.frequency);
-      lfo.start();
+      // Rhythm modulation: gentle 3.8Hz steam chug
+      this.engineLfo.frequency.setValueAtTime(3.8, t);
+      lfoGain.gain.setValueAtTime(14, t);
+      this.engineLfo.connect(this.engineOsc.frequency);
 
-      this.engineGain.gain.setValueAtTime(0.04, t);
+      // Start silent (gain = 0.0001); volume ramps up only when boat actively moves
+      this.engineGain.gain.setValueAtTime(0.0001, t);
 
-      this.engineOsc.connect(this.engineGain);
-      this.engineGain.connect(this.ctx.destination);
+      this.engineOsc.connect(this.engineFilter);
+      this.engineFilter.connect(this.engineGain);
+      this.engineGain.connect(this.masterCompressor || this.ctx.destination);
 
-      this.engineOsc.start();
+      this.engineLfo.start(t);
+      this.engineOsc.start(t);
       this.isEngineRunning = true;
     } catch (e) {
       console.warn('Audio engine start failed:', e);
     }
   }
 
-  updateEngineSpeed(speedRatio, algaeFouledRatio = 0) {
-    if (!this.engineOsc || !this.isEngineRunning || !this.ctx) return;
-    // When fouled by algae, engine pitch drops and bogs down
-    const bogFactor = Math.max(0.65, 1.0 - algaeFouledRatio * 0.35);
-    const basePitch = (55 + speedRatio * 35) * bogFactor;
-    this.engineOsc.frequency.setTargetAtTime(basePitch, this.ctx.currentTime, 0.1);
+  stopEngine() {
+    if (!this.isEngineRunning) return;
+    try {
+      const t = this.ctx ? this.ctx.currentTime : 0;
+      if (this.engineGain && this.ctx) {
+        this.engineGain.gain.setTargetAtTime(0.0001, t, 0.08);
+      }
+      const osc = this.engineOsc;
+      const lfo = this.engineLfo;
+      this.engineOsc = null;
+      this.engineLfo = null;
+      this.isEngineRunning = false;
+
+      setTimeout(() => {
+        try {
+          if (osc) { osc.stop(); osc.disconnect(); }
+          if (lfo) { lfo.stop(); lfo.disconnect(); }
+        } catch (e) {}
+      }, 120);
+    } catch (e) {
+      this.isEngineRunning = false;
+    }
+  }
+
+  updateEngineSpeed(speedRatio, isThrottling = false, algaeFouledRatio = 0) {
+    if (this.isMuted) {
+      if (this.isEngineRunning) this.stopEngine();
+      return;
+    }
+
+    // If boat is stopped/stationary and not throttling, silence the engine
+    if (speedRatio < 0.04 && !isThrottling) {
+      if (this.isEngineRunning && this.engineGain && this.ctx) {
+        this.engineGain.gain.setTargetAtTime(0.0001, this.ctx.currentTime, 0.15);
+      }
+      return;
+    }
+
+    // Lazily start engine sound only when the tugboat is underway
+    if (!this.isEngineRunning) {
+      this.startEngine();
+      if (!this.isEngineRunning) return;
+    }
+
+    if (!this.ctx || !this.engineOsc || !this.engineGain) return;
+
+    const t = this.ctx.currentTime;
+    const bogFactor = Math.max(0.7, 1.0 - algaeFouledRatio * 0.3);
+    const clampedSpeed = Math.min(1.0, Math.max(0.0, speedRatio));
+
+    // Dynamic pitch: 48Hz slow chug to 74Hz cruising putter
+    const targetPitch = (48 + clampedSpeed * 26) * bogFactor;
+    this.engineOsc.frequency.setTargetAtTime(targetPitch, t, 0.12);
+
+    // Dynamic rhythm: 3.8Hz to 6.8Hz chug rate
+    if (this.engineLfo) {
+      const targetLfo = 3.8 + clampedSpeed * 3.0;
+      this.engineLfo.frequency.setTargetAtTime(targetLfo, t, 0.12);
+    }
+
+    // Filter frequency opens slightly as boat accelerates
+    if (this.engineFilter) {
+      this.engineFilter.frequency.setTargetAtTime(240 + clampedSpeed * 110, t, 0.15);
+    }
+
+    // Gentle cozy volume: 0 when stopped, scaling up to ~0.022 when moving
+    const targetGain = isThrottling
+      ? Math.max(0.010, clampedSpeed * 0.022)
+      : clampedSpeed * 0.018;
+    this.engineGain.gain.setTargetAtTime(targetGain, t, 0.12);
   }
 
   /**
