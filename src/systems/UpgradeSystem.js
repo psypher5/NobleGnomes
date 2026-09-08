@@ -142,6 +142,8 @@ export class UpgradeSystem {
     this.whirlpoolDuration = 4.5;
     this.whirlpoolCenter = new THREE.Vector3();
     this.scrubTimer = 0;
+    this.dashHitSet = new Set();
+    this.prowHitCooldowns = new Map();
 
     // Visual FX group
     this.fxGroup = new THREE.Group();
@@ -313,6 +315,7 @@ export class UpgradeSystem {
       case 'spell_steam_surge':
         this.dashTimer = this.dashDuration;
         this.dashHeading = boat.heading;
+        this.dashHitSet.clear();
         boat.speed = 15.0;
         try { boat.tootWhistle(); } catch (e) {}
         this.game.hud.showHint('💨 STEAM SURGE! Full throttle hydro-dash!', '#38bdf8');
@@ -365,9 +368,13 @@ export class UpgradeSystem {
         const toSlime = new THREE.Vector3().subVectors(s.position, origin).normalize();
         const dot = forward.dot(toSlime);
         if (dot > 0.2) {
-          s.hit(3);
-          s.stunTimer = 3.0;
-          this.game.slimeManager.handleSlimeCleansed(s, s.health <= 0);
+          const hitResult = s.hit(3);
+          if (hitResult && hitResult.shielded) {
+            this.game.hud.showHint('🛡️ BEHEMOTH SHIELD DEFLECTED WAVE! Rescue gnomes to break shield!', '#facc15');
+          } else {
+            s.stunTimer = 3.0;
+            this.game.slimeManager.handleSlimeCleansed(s, s.health <= 0);
+          }
         }
       }
     });
@@ -391,10 +398,17 @@ export class UpgradeSystem {
       boat.speed = Math.max(boat.speed, 14.5);
       const slimes = this.game.slimeManager.slimes;
       slimes.forEach(s => {
-        if (!s.isDead && boat.position.distanceTo(s.position) < 3.2) {
-          s.hit(4);
-          this.game.slimeManager.handleSlimeCleansed(s, s.health <= 0);
-          this.game.hud.showHint('💥 HYDRO-RAM! Slime shattered by steam prow!', '#38bdf8');
+        if (!s.isDead && !this.dashHitSet.has(s) && boat.position.distanceTo(s.position) < 3.2) {
+          this.dashHitSet.add(s);
+          const hitResult = s.hit(4);
+          if (hitResult && hitResult.shielded) {
+            this.game.hud.showHint('🛡️ BEHEMOTH SHIELD DEFLECTED RAM! Rescue gnomes to break shield!', '#facc15');
+            boat.speed = -4.0; // Recoil bounce back
+            this.dashTimer = 0; // Cancel dash on shield impact
+          } else {
+            this.game.slimeManager.handleSlimeCleansed(s, s.health <= 0);
+            this.game.hud.showHint('💥 HYDRO-RAM! Slime shattered by steam prow!', '#38bdf8');
+          }
         }
       });
 
@@ -453,13 +467,27 @@ export class UpgradeSystem {
     }
 
     // 3b. Bramble Spiked Prow: deals 3 ramming damage when cruising > 4m/s
+    for (const [s, cd] of this.prowHitCooldowns.entries()) {
+      if (cd <= dt) {
+        this.prowHitCooldowns.delete(s);
+      } else {
+        this.prowHitCooldowns.set(s, cd - dt);
+      }
+    }
+
     if (this.hasPassive('passive_spiked_prow') && boat.speed > 4.0) {
       const slimes = this.game.slimeManager.slimes;
       slimes.forEach(s => {
-        if (!s.isDead && boat.position.distanceTo(s.position) < 2.8) {
-          s.hit(3);
-          this.game.slimeManager.handleSlimeCleansed(s, s.health <= 0);
-          this.game.hud.showHint('⚔️ Spiked Prow gored slime!', '#fb7185');
+        if (!s.isDead && !this.prowHitCooldowns.has(s) && boat.position.distanceTo(s.position) < 2.8) {
+          this.prowHitCooldowns.set(s, 1.5);
+          const hitResult = s.hit(3);
+          if (hitResult && hitResult.shielded) {
+            this.game.hud.showHint('🛡️ BEHEMOTH SHIELD DEFLECTED RAM! Rescue gnomes to break shield!', '#facc15');
+            boat.speed = -3.0; // Recoil bounce back
+          } else {
+            this.game.slimeManager.handleSlimeCleansed(s, s.health <= 0);
+            this.game.hud.showHint('⚔️ Spiked Prow gored slime!', '#fb7185');
+          }
         }
       });
     }
