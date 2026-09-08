@@ -49,6 +49,7 @@ class NobleGnomesGame {
     this.currentNode = null;
 
     this.sounds = sounds;
+    window.sounds = sounds;
     window.game = this;
 
     // 1. Core Engine & Scene
@@ -825,6 +826,9 @@ class NobleGnomesGame {
     // 0. MENU / MAP OVERWORLD STATE: Orbit camera around lush pond diorama in background
     if (this.state === 'MENU' || this.state === 'MAP') {
       sounds.stopEngine();
+      if (sounds.music) {
+        sounds.music.updateGameState({ gameState: this.state });
+      }
       const orbitSpeed = this.state === 'MENU' ? 0.035 : 0.05;
       const angle = elapsedTime * orbitSpeed;
       this.engine.camera.position.set(Math.cos(angle) * 32, 16, Math.sin(angle) * 32);
@@ -1106,6 +1110,18 @@ class NobleGnomesGame {
       this.playerExp,
       this.expToNextLevel
     );
+
+    // Update dynamic reactive procedural music system
+    if (sounds.music) {
+      sounds.music.updateGameState({
+        gameState: this.isOutro ? 'OUTRO' : 'PLAYING',
+        slimeCount: remaining,
+        maxSlimes: this.slimeManager.totalSpawned || 20,
+        bossAlive: Boolean(boss && !boss.isDead),
+        bossShielded: Boolean(boss && boss.isShielded),
+        bossPhase: (boss && typeof boss.getBossPhase === 'function') ? boss.getBossPhase() : 1
+      });
+    }
 
     // 7. Multi-Objective Expedition Victory & Outro Cinematic Trigger:
     // When pond is cleared (all slimes defeated & gnomes rescued), docking at the pier triggers the cinematic outro!

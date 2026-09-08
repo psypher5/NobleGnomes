@@ -1,3 +1,5 @@
+import { ProceduralMusicSystem } from './ProceduralMusicSystem.js';
+
 /**
  * Procedural audio synthesizer using Web Audio API.
  * Generates rich acoustic bell chimes, liquid splashes, bubble pops, and engine putters without external assets.
@@ -17,6 +19,9 @@ export class SoundSynthesizer {
     this.lastBellTime = 0;
     this.masterCompressor = null;
     this.masterGain = null;
+
+    // Procedural Music Engine (Liquid DnB to Speedbass)
+    this.music = null;
   }
 
   init() {
@@ -37,6 +42,12 @@ export class SoundSynthesizer {
 
       this.masterCompressor.connect(this.masterGain);
       this.masterGain.connect(this.ctx.destination);
+
+      // Initialize Procedural Music feeding into master compressor
+      this.music = new ProceduralMusicSystem(this.ctx, this.masterCompressor);
+      if (!this.isMuted) {
+        this.music.start();
+      }
     }
     if (this.ctx.state === 'suspended') {
       this.ctx.resume();
@@ -45,8 +56,11 @@ export class SoundSynthesizer {
 
   toggleMute() {
     this.isMuted = !this.isMuted;
-    if (this.isMuted && this.isEngineRunning) {
-      this.stopEngine();
+    if (this.isMuted) {
+      if (this.isEngineRunning) this.stopEngine();
+      if (this.music) this.music.stop();
+    } else {
+      if (this.music) this.music.start();
     }
     return this.isMuted;
   }
