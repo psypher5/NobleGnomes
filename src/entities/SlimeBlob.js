@@ -163,6 +163,7 @@ export class SlimeBlob {
     this.isGroundPounding = false;
     this.groundPoundTimer = 0;
     this.groundPoundStage = 0; // 0=idle, 1=telegraph, 2=airborne, 3=impact
+    this.queuedBursts = []; // Game-loop-timed mortar bursts (replaces setTimeout)
     this.enrageColorLerp = 0;
     this.originalBodyColor = null; // Captured on first phase update
 
@@ -405,9 +406,16 @@ export class SlimeBlob {
       // 1. Massive Colossal Body (2.4x scale)
       const bossGeo = createOrganicDropletGeometry(2.35, 28, 22, this.seed + 30.0);
       bossGeo.scale(1.18, 1.15, 1.1);
+      // Recompute bounding volumes after scale — Three.js uses the original unscaled sphere
+      // for frustum culling, causing the boss to pop in/out of view near the frustum edge.
+      bossGeo.computeBoundingSphere();
+      bossGeo.computeBoundingBox();
       this.coreMesh = new THREE.Mesh(bossGeo, bossMat);
       this.coreMesh.position.y = 1.75;
       this.coreMesh.castShadow = true;
+      // Disable frustum culling — the boss is always near the playfield centre,
+      // culling provides no benefit and can incorrectly hide it during camera tilts.
+      this.coreMesh.frustumCulled = false;
       this.bodyGroup.add(this.coreMesh);
 
       // 2. Crown of 5 Jagged Stone Horns / Spires
@@ -547,8 +555,10 @@ export class SlimeBlob {
       // Body-fitting energetic armor mesh precisely tracing boss geometry
       const shieldSkinGeo = bossGeo.clone();
       shieldSkinGeo.scale(1.04, 1.04, 1.04);
+      shieldSkinGeo.computeBoundingSphere();
       this.shieldMesh = new THREE.Mesh(shieldSkinGeo, this.shieldMat);
       this.shieldMesh.position.y = 1.75;
+      this.shieldMesh.frustumCulled = false;
       this.bodyGroup.add(this.shieldMesh);
 
       // Golden Gnome Lock Badge floating atop central horn
@@ -1401,6 +1411,20 @@ export class SlimeBlob {
             this.coreMesh.material.emissiveIntensity = 1.3;
           }
         }
+
+        // Process queued mortar bursts with game-loop delta time (pauses during menus/drafts)
+        if (this.queuedBursts && this.queuedBursts.length > 0) {
+          for (let bIdx = this.queuedBursts.length - 1; bIdx >= 0; bIdx--) {
+            const burst = this.queuedBursts[bIdx];
+            burst.delay -= dt;
+            if (burst.delay <= 0) {
+              if (onLaunchProjectile) {
+                onLaunchProjectile(burst.origin, burst.target, true);
+              }
+              this.queuedBursts.splice(bIdx, 1);
+            }
+          }
+        }
       }
 
       // === GROUND POUND STATE MACHINE (Boss Phase 3 only) ===
@@ -1414,6 +1438,9 @@ export class SlimeBlob {
           const easeUp = t * t; // Quadratic ease-in
           this.bodyGroup.position.y = easeUp * 4.5;
           this.coreMesh.scale.set(1.0 - easeUp * 0.15, 1.0 + easeUp * 0.3, 1.0 - easeUp * 0.15);
+          if (this.shieldMesh) {
+            this.shieldMesh.scale.set((1.0 - easeUp * 0.15) * 1.04, (1.0 + easeUp * 0.3) * 1.04, (1.0 - easeUp * 0.15) * 1.04);
+          }
           if (this.leftArm) this.leftArm.rotation.z = 0.35 + easeUp * 1.2;
           if (this.rightArm) this.rightArm.rotation.z = -0.35 - easeUp * 1.2;
 
@@ -1438,6 +1465,9 @@ export class SlimeBlob {
           const easeCrash = 1.0 - (1.0 - t) * (1.0 - t); // Ease-out
           this.bodyGroup.position.y = 4.5 * (1.0 - easeCrash);
           this.coreMesh.scale.set(1.0 + easeCrash * 0.3, 1.0 - easeCrash * 0.25, 1.0 + easeCrash * 0.3);
+          if (this.shieldMesh) {
+            this.shieldMesh.scale.set((1.0 + easeCrash * 0.3) * 1.04, (1.0 - easeCrash * 0.25) * 1.04, (1.0 + easeCrash * 0.3) * 1.04);
+          }
 
           if (this.groundPoundTimer >= impactDuration) {
             // Trigger the tidal wave via callback
@@ -1452,6 +1482,9 @@ export class SlimeBlob {
             this.groundPoundTimer = 0;
             this.bodyGroup.position.y = 0;
             this.coreMesh.scale.set(1.05, 1.05, 1.05);
+            if (this.shieldMesh) {
+              this.shieldMesh.scale.set(1.05 * 1.04, 1.05 * 1.04, 1.05 * 1.04);
+            }
             if (this.leftArm) this.leftArm.rotation.z = 0.35;
             if (this.rightArm) this.rightArm.rotation.z = -0.35;
             this.throwTimer = this.getBossCooldown();
@@ -1521,17 +1554,17 @@ export class SlimeBlob {
                   onLaunchProjectile(bossOrigin, target, true);
                 }
 
-                // Phase 2+: rapid mortar burst — fire 2 extra aimed projectiles
+                // Phase 2+: rapid mortar burst — fire 2 extra aimed projectiles timed with delta-time
                 if (this.getBossPhase() >= 2 && onLaunchProjectile) {
                   for (let burst = 0; burst < 2; burst++) {
                     const spreadTarget = boatPosition.clone().add(
                       new THREE.Vector3((Math.random() - 0.5) * 6.0, 0, (Math.random() - 0.5) * 6.0)
                     );
-                    setTimeout(() => {
-                      if (onLaunchProjectile) {
-                        onLaunchProjectile(bossOrigin, spreadTarget, true);
-                      }
-                    }, (burst + 1) * 200);
+                    this.queuedBursts.push({
+                      delay: (burst + 1) * 0.20,
+                      origin: bossOrigin.clone(),
+                      target: spreadTarget
+                    });
                   }
                 }
                 this.throwTimer = this.getBossCooldown();
@@ -1572,6 +1605,10 @@ export class SlimeBlob {
           const squishXZ = 1.0 + swell * 0.05 + wakeSquish;
           const squishY = 1.0 - swell * 0.07 - wakeSquish * 0.7;
           this.coreMesh.scale.set(1.05 * squishXZ, 1.05 * squishY, 1.05 * squishXZ);
+          // Keep shield dome always outside the body — mirror scale with constant 1.04 wrap offset
+          if (this.shieldMesh) {
+            this.shieldMesh.scale.set(1.05 * squishXZ * 1.04, 1.05 * squishY * 1.04, 1.05 * squishXZ * 1.04);
+          }
           this.coreMesh.rotation.x = 0;
           if (this.faceGroup) {
             this.faceGroup.scale.set(squishXZ, squishY, squishXZ);

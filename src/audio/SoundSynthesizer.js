@@ -166,15 +166,13 @@ export class SoundSynthesizer {
 
     // 2. Tremolo / Acoustic Plate Modulation: creates undulating metallic gong shimmer
     const tremoloOsc = this.ctx.createOscillator();
-    const tremoloGain = this.ctx.createGain();
     tremoloOsc.type = 'sine';
     tremoloOsc.frequency.setValueAtTime(3.2, t); // 3.2Hz slow beating
-    tremoloGain.gain.setValueAtTime(0.18, t);
-    tremoloGain.gain.exponentialRampToValueAtTime(0.01, t + 4.5);
+    // (tremoloGain was orphaned — tremolo connects directly to filterTremoloGain below)
 
-    // 3. Master Gong Gain
+    // 3. Master Gong Gain — reduced from 0.68 to avoid digital clipping on loud hits
     const gongMasterGain = this.ctx.createGain();
-    gongMasterGain.gain.setValueAtTime(0.68 * power, t);
+    gongMasterGain.gain.setValueAtTime(0.42 * power, t);
 
     filter.connect(gongMasterGain);
     gongMasterGain.connect(this.masterCompressor || this.ctx.destination);
@@ -231,7 +229,7 @@ export class SoundSynthesizer {
     malletOsc.frequency.exponentialRampToValueAtTime(65, t + 0.16);
 
     malletGain.gain.setValueAtTime(0.0001, t);
-    malletGain.gain.linearRampToValueAtTime(0.65 * power, t + 0.008);
+    malletGain.gain.linearRampToValueAtTime(0.40 * power, t + 0.008);
     malletGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.20);
 
     malletOsc.connect(malletGain);
@@ -288,7 +286,7 @@ export class SoundSynthesizer {
     gain.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
 
     osc.connect(gain);
-    gain.connect(this.ctx.destination);
+    gain.connect(this.masterGain || this.ctx.destination);
 
     osc.start(t);
     osc.stop(t + 0.09);
@@ -317,7 +315,7 @@ export class SoundSynthesizer {
     gain.gain.exponentialRampToValueAtTime(0.0005, t + 0.045);
 
     osc.connect(gain);
-    gain.connect(this.ctx.destination);
+    gain.connect(this.masterGain || this.ctx.destination);
 
     osc.start(t);
     osc.stop(t + 0.045);
@@ -349,7 +347,7 @@ export class SoundSynthesizer {
 
     osc.connect(filter);
     filter.connect(gain);
-    gain.connect(this.ctx.destination);
+    gain.connect(this.masterGain || this.ctx.destination);
 
     osc.start(t);
     osc.stop(t + 0.15);
@@ -375,7 +373,7 @@ export class SoundSynthesizer {
     gain.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
 
     osc.connect(gain);
-    gain.connect(this.ctx.destination);
+    gain.connect(this.masterGain || this.ctx.destination);
     osc.start(t);
     osc.stop(t + 0.14);
   }
@@ -403,7 +401,7 @@ export class SoundSynthesizer {
       gain.gain.exponentialRampToValueAtTime(0.001, noteTime + 0.35);
 
       osc.connect(gain);
-      gain.connect(this.ctx.destination);
+      gain.connect(this.masterGain || this.ctx.destination);
 
       osc.start(noteTime);
       osc.stop(noteTime + 0.35);
@@ -558,7 +556,7 @@ export class SoundSynthesizer {
       gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.65);
 
       osc.connect(gain);
-      gain.connect(this.ctx.destination);
+      gain.connect(this.masterGain || this.ctx.destination);
 
       osc.start(t);
       osc.stop(t + 0.65);
@@ -589,7 +587,7 @@ export class SoundSynthesizer {
     gain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
 
     osc.connect(gain);
-    gain.connect(this.ctx.destination);
+    gain.connect(this.masterGain || this.ctx.destination);
 
     osc.start(t);
     osc.stop(t + 0.08);
@@ -827,55 +825,6 @@ export class SoundSynthesizer {
   }
 
   /**
-   * Enormous liquid concussive ground pound / tidal wave crash from the Bog Behemoth
-   */
-  playGroundPound() {
-    if (this.isMuted) return;
-    this.init();
-    if (!this.ctx) return;
-
-    const t = this.ctx.currentTime;
-
-    // 1. Heavy visceral concussive thud (deep pitch dive 125Hz -> 28Hz)
-    const thudOsc = this.ctx.createOscillator();
-    const thudGain = this.ctx.createGain();
-    thudOsc.type = 'triangle';
-    thudOsc.frequency.setValueAtTime(125, t);
-    thudOsc.frequency.exponentialRampToValueAtTime(28, t + 0.55);
-
-    thudGain.gain.setValueAtTime(0.48, t);
-    thudGain.gain.exponentialRampToValueAtTime(0.001, t + 0.60);
-
-    thudOsc.connect(thudGain);
-    thudGain.connect(this.masterCompressor || this.ctx.destination);
-    thudOsc.start(t);
-    thudOsc.stop(t + 0.62);
-
-    // 2. Colossal tidal water surge / spray wash (wideband swept noise)
-    const bufferSize = Math.floor(this.ctx.sampleRate * 0.75);
-    const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-    const output = noiseBuffer.getChannelData(0);
-    for (let i = 0; i < bufferSize; i++) output[i] = Math.random() * 2 - 1;
-
-    const noise = this.ctx.createBufferSource();
-    noise.buffer = noiseBuffer;
-    const noiseFilter = this.ctx.createBiquadFilter();
-    noiseFilter.type = 'lowpass';
-    noiseFilter.frequency.setValueAtTime(1400, t);
-    noiseFilter.frequency.exponentialRampToValueAtTime(180, t + 0.75);
-
-    const noiseGain = this.ctx.createGain();
-    noiseGain.gain.setValueAtTime(0.38, t);
-    noiseGain.gain.exponentialRampToValueAtTime(0.001, t + 0.75);
-
-    noise.connect(noiseFilter);
-    noiseFilter.connect(noiseGain);
-    noiseGain.connect(this.masterCompressor || this.ctx.destination);
-    noise.start(t);
-    noise.stop(t + 0.76);
-  }
-
-  /**
    * Crunchy wooden hull splintering and distress thud
    */
   playHullDamage() {
@@ -1089,34 +1038,6 @@ export class SoundSynthesizer {
 
     whiteNoise.start(t);
     whiteNoise.stop(t + 0.9);
-  }
-
-  /**
-   * Radiant heroic fanfare for unlocking an area token
-   */
-  playTokenFanfare() {
-    if (this.isMuted) return;
-    this.init();
-    if (!this.ctx) return;
-
-    const notes = [440, 554.37, 659.25, 880]; // A4, C#5, E5, A5
-    notes.forEach((freq, idx) => {
-      const t = this.ctx.currentTime + idx * 0.11;
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(freq, t);
-
-      gain.gain.setValueAtTime(0.3, t);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + (idx === 3 ? 1.2 : 0.28));
-
-      osc.connect(gain);
-      gain.connect(this.masterCompressor || this.ctx.destination);
-
-      osc.start(t);
-      osc.stop(t + (idx === 3 ? 1.2 : 0.28));
-    });
   }
 
   /**

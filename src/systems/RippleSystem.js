@@ -9,6 +9,9 @@ export class RippleSystem {
   constructor(pondWater) {
     this.pondWater = pondWater;
     this.ripples = [];
+    // Reusable scratch Vector2 to avoid per-frame allocations in intersection loops
+    this._tmpV2 = new THREE.Vector2();
+    this._tmpCenter2D = new THREE.Vector2();
   }
 
   /**
@@ -37,10 +40,10 @@ export class RippleSystem {
    * Disperse / cancel active bell ripples caught in a tidal ground pound surge
    */
   disperseRipplesNear(center, radius = 24.0) {
-    const center2D = new THREE.Vector2(center.x, center.z);
+    this._tmpCenter2D.set(center.x, center.z);
     for (let r = this.ripples.length - 1; r >= 0; r--) {
       const rip = this.ripples[r];
-      const dist = rip.origin.distanceTo(center2D);
+      const dist = rip.origin.distanceTo(this._tmpCenter2D);
       if (dist < radius + rip.currentRadius) {
         this.ripples.splice(r, 1);
       }
@@ -58,7 +61,9 @@ export class RippleSystem {
         if (slime.isDead) continue;
         if (rip.damageAppliedSet.has(slime)) continue;
 
-        const dist = rip.origin.distanceTo(new THREE.Vector2(slime.position.x, slime.position.z));
+        // Reuse scratch vec2 to avoid per-frame allocation
+        this._tmpV2.set(slime.position.x, slime.position.z);
+        const dist = rip.origin.distanceTo(this._tmpV2);
 
         // When the expanding wave ring sweeps across the slime
         if (dist >= prevRadius - 1.2 && dist <= rip.currentRadius + 1.2) {

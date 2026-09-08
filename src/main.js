@@ -329,7 +329,7 @@ class NobleGnomesGame {
 
     // Show Storybook Victory Modal
     const requiredGnomes = this.crewManager.strandedGnomes.length;
-    const droppedOffCount = this.crewManager.droppedOffGnomes.length + requiredGnomes;
+    const droppedOffCount = this.crewManager.droppedOffGnomes.length;
     const scumDeposited = this.slimeManager.getScumDeposited();
     const totalScum = this.slimeManager.getTotalScumSpawned();
     const bossSlime = this.slimeManager.getBossSlime();
@@ -339,7 +339,7 @@ class NobleGnomesGame {
     this.hud.showVictoryModal({
       nodeName: this.currentNode ? this.currentNode.name : 'Port Bramble Lily Pond',
       bossDefeated,
-      rescuedGnomes: Math.max(droppedOffCount, requiredGnomes),
+      rescuedGnomes: Math.min(droppedOffCount, requiredGnomes),
       totalGnomes: Math.max(requiredGnomes, 1),
       scumDeposited,
       totalScum: Math.max(totalScum, scumDeposited),

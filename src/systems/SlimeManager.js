@@ -56,6 +56,17 @@ export class SlimeManager {
     this.cleansedCount = 0;
     this.totalSpawned = 0;
 
+    // Transient per-update context — stored so bound callbacks can read without closures
+    this._ctx = { pondWater: null, tugboat: null, onFouledCallback: null, rippleSystem: null };
+
+    // Pre-bind slime update callbacks once to avoid per-frame closure allocations
+    this._cbLaunchProjectile  = (start, target, isBossAlgae = false) => this.launchProjectile(start, target, this._ctx.pondWater, this._ctx.tugboat, this._ctx.onFouledCallback, isBossAlgae);
+    this._cbBubbleHatched     = (hatchPos) => this.handleBubbleHatched(hatchPos, this._ctx.pondWater);
+    this._cbLaunchRock        = (start, target) => this.launchRockProjectile(start, target, this._ctx.pondWater, this._ctx.tugboat, this._ctx.onFouledCallback);
+    this._cbLaunchRing        = (origin, count, isBossAlgae = true) => this.launchProjectileRing(origin, count, isBossAlgae, this._ctx.pondWater, this._ctx.tugboat, this._ctx.onFouledCallback);
+    this._cbGroundPound       = (boss) => this.triggerBossGroundPound(boss, this._ctx.pondWater, this._ctx.tugboat, this._ctx.rippleSystem, this._ctx.onFouledCallback);
+    this._cbBossHealed        = (boss, val) => this.handleBossHealed(boss, val, this._ctx.onFouledCallback);
+
     this.initEcosystem();
   }
 
@@ -540,6 +551,11 @@ export class SlimeManager {
   }
 
   update(dt, time, boatPosition, pondWater = null, boatHeading = 0, boatSpeed = 0, tugboat = null, onFouledCallback = null, rippleSystem = null, onScumCollectedCallback = null) {
+    // Update transient context for pre-bound callbacks (avoids 6 closure allocations per slime per frame)
+    this._ctx.pondWater       = pondWater;
+    this._ctx.tugboat         = tugboat;
+    this._ctx.onFouledCallback = onFouledCallback;
+    this._ctx.rippleSystem    = rippleSystem;
     // 0. Animate colony merged scum mats and scale according to resident slimes
     for (const col of this.colonies) {
       if (col.meshGroup) {
@@ -623,25 +639,13 @@ export class SlimeManager {
         dt,
         time,
         boatPosition,
-        (start, target, isBossAlgae = false) => {
-          this.launchProjectile(start, target, pondWater, tugboat, onFouledCallback, isBossAlgae);
-        },
-        (hatchPos) => {
-          this.handleBubbleHatched(hatchPos, pondWater);
-        },
-        (start, target) => {
-          this.launchRockProjectile(start, target, pondWater, tugboat, onFouledCallback);
-        },
-        (origin, count, isBossAlgae = true) => {
-          this.launchProjectileRing(origin, count, isBossAlgae, pondWater, tugboat, onFouledCallback);
-        },
-        (boss) => {
-          this.triggerBossGroundPound(boss, pondWater, tugboat, rippleSystem, onFouledCallback);
-        },
+        this._cbLaunchProjectile,
+        this._cbBubbleHatched,
+        this._cbLaunchRock,
+        this._cbLaunchRing,
+        this._cbGroundPound,
         this.scumClots,
-        (boss, val) => {
-          this.handleBossHealed(boss, val, onFouledCallback);
-        }
+        this._cbBossHealed
       );
 
       if (slime.isDead) {

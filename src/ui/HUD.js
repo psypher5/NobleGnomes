@@ -322,215 +322,189 @@ export class HUD {
     if (draftModal && draftModal.parentElement) {
       document.body.appendChild(draftModal);
     }
+
+    // Cache all DOM element references once — eliminates 40+ getElementById calls per frame
+    this._cacheElements();
+  }
+
+  _cacheElements() {
+    const $ = (id) => document.getElementById(id);
+    this._els = {
+      purityPercent:    $('purity-percent'),
+      purityBar:        $('purity-bar'),
+      slimesRemaining:  $('slimes-remaining'),
+      rankVal:          $('player-rank-val'),
+      expBar:           $('player-exp-bar'),
+      expSub:           $('player-exp-sub'),
+      scumStatusVal:    $('scum-status-val'),
+      scumBar:          $('scum-bar'),
+      scumOnboardSub:   $('scum-onboard-sub'),
+      scumPierSub:      $('scum-pier-sub'),
+      hullPercent:      $('hull-percent'),
+      hullBar:          $('hull-bar'),
+      hullStatus:       $('hull-status'),
+      bossCard:         $('boss-card'),
+      bossHpVal:        $('boss-hp-val'),
+      bossHpBar:        $('boss-hp-bar'),
+      bossStatusText:   $('boss-status-text'),
+      bigBellBtn:       $('btn-big-bell'),
+      bigBellRing:      $('big-bell-cooldown-ring'),
+      bigBellSub:       $('big-bell-sub'),
+      crewCount:        $('crew-count'),
+      slotPip:          $('slot-pip'),
+      slotBarnaby:      $('slot-barnaby'),
+      slotClover:       $('slot-clover'),
+      perksText:        $('active-perks'),
+      bellRing:         $('bell-cooldown-ring'),
+      bellBtn:          $('btn-bell'),
+      cleanBtn:         $('btn-clean'),
+      cleanSub:         $('clean-penalty'),
+    };
+    // Spell slots cached as an array of { slot, icon, cdOverlay, cdText }
+    this._spellSlots = [];
+    for (let i = 0; i < 4; i++) {
+      const slotEl = $(`spell-slot-${i}`);
+      this._spellSlots.push({
+        slot:      slotEl,
+        icon:      slotEl ? slotEl.querySelector('.spell-icon') : null,
+        cdOverlay: slotEl ? slotEl.querySelector('.spell-cooldown-overlay') : null,
+        cdText:    slotEl ? slotEl.querySelector('.spell-cooldown-text') : null,
+      });
+    }
   }
 
   update(purityPercent, slimesRemaining, crewCount, rescuedGnomes, bellCooldownRatio, onboardCount = 0, droppedOffCount = 0, algaeLevel = 0, hullHealth = 100, maxHullHealth = 100, scumOnboard = 0, scumDeposited = 0, totalScum = 0, bossInfo = null, bigBellCooldownRatio = 1.0, hasAllGnomes = false, playerLevel = 1, playerExp = 0, expToNextLevel = 50) {
+    const e = this._els;
     // 1. Purity Meter
-    const purityVal = document.getElementById('purity-percent');
-    const purityBar = document.getElementById('purity-bar');
-    const slimesCount = document.getElementById('slimes-remaining');
-
-    if (purityVal) purityVal.textContent = `${purityPercent}%`;
-    if (purityBar) purityBar.style.width = `${purityPercent}%`;
-    if (slimesCount) slimesCount.textContent = slimesRemaining;
+    if (e.purityPercent) e.purityPercent.textContent = `${purityPercent}%`;
+    if (e.purityBar) e.purityBar.style.width = `${purityPercent}%`;
+    if (e.slimesRemaining) e.slimesRemaining.textContent = slimesRemaining;
 
     // 1a. Expedition Rank & EXP Meter
-    const rankVal = document.getElementById('player-rank-val');
-    const expBar = document.getElementById('player-exp-bar');
-    const expSub = document.getElementById('player-exp-sub');
-
-    if (rankVal) rankVal.textContent = `LV. ${playerLevel}`;
-    if (expBar) {
+    if (e.rankVal) e.rankVal.textContent = `LV. ${playerLevel}`;
+    if (e.expBar) {
       const expPct = expToNextLevel > 0 ? Math.min(100, Math.max(0, (playerExp / expToNextLevel) * 100)) : 0;
-      expBar.style.width = `${expPct}%`;
+      e.expBar.style.width = `${expPct}%`;
     }
-    if (expSub) {
-      expSub.textContent = `${playerExp} / ${expToNextLevel} EXP`;
-    }
+    if (e.expSub) e.expSub.textContent = `${playerExp} / ${expToNextLevel} EXP`;
 
     // 1b. Scum Compost Meter
-    const scumStatusVal = document.getElementById('scum-status-val');
-    const scumBar = document.getElementById('scum-bar');
-    const scumOnboardSub = document.getElementById('scum-onboard-sub');
-    const scumPierSub = document.getElementById('scum-pier-sub');
-
-    if (scumStatusVal) scumStatusVal.textContent = `${scumDeposited} / ${totalScum}`;
-    if (scumBar) {
+    if (e.scumStatusVal) e.scumStatusVal.textContent = `${scumDeposited} / ${totalScum}`;
+    if (e.scumBar) {
       const pct = totalScum > 0 ? Math.min(100, Math.round((scumDeposited / totalScum) * 100)) : (slimesRemaining === 0 ? 100 : 0);
-      scumBar.style.width = `${pct}%`;
+      e.scumBar.style.width = `${pct}%`;
     }
-    if (scumOnboardSub) {
-      scumOnboardSub.textContent = `🎒 Onboard: ${scumOnboard}`;
-      scumOnboardSub.style.color = scumOnboard > 0 ? '#4ade80' : '#cbd5e1';
+    if (e.scumOnboardSub) {
+      e.scumOnboardSub.textContent = `🎒 Onboard: ${scumOnboard}`;
+      e.scumOnboardSub.style.color = scumOnboard > 0 ? '#4ade80' : '#cbd5e1';
     }
-    if (scumPierSub) {
-      scumPierSub.textContent = `Pier: ${scumDeposited}`;
-    }
+    if (e.scumPierSub) e.scumPierSub.textContent = `Pier: ${scumDeposited}`;
 
     // 1c. Hull Integrity Bar
-    const hullVal = document.getElementById('hull-percent');
-    const hullBar = document.getElementById('hull-bar');
-    const hullStatus = document.getElementById('hull-status');
-
-    if (hullVal) hullVal.textContent = `${Math.round(hullHealth)} HP`;
-    if (hullBar) {
+    if (e.hullPercent) e.hullPercent.textContent = `${Math.round(hullHealth)} HP`;
+    if (e.hullBar) {
       const pct = Math.max(0, Math.min(100, (hullHealth / maxHullHealth) * 100));
-      hullBar.style.width = `${pct}%`;
-      hullBar.className = 'progress-fill hull-fill';
+      e.hullBar.style.width = `${pct}%`;
+      e.hullBar.className = 'progress-fill hull-fill';
       if (hullHealth <= 25) {
-        hullBar.classList.add('danger');
-        if (hullStatus) {
-          hullStatus.textContent = '🚨 CRITICAL! Taking on water!';
-          hullStatus.style.color = '#f87171';
-        }
+        e.hullBar.classList.add('danger');
+        if (e.hullStatus) { e.hullStatus.textContent = '🚨 CRITICAL! Taking on water!'; e.hullStatus.style.color = '#f87171'; }
       } else if (hullHealth <= 55) {
-        hullBar.classList.add('warning');
-        if (hullStatus) {
-          hullStatus.textContent = '⚠️ Hull Battered! Salvage debris!';
-          hullStatus.style.color = '#fbbf24';
-        }
+        e.hullBar.classList.add('warning');
+        if (e.hullStatus) { e.hullStatus.textContent = '⚠️ Hull Battered! Salvage debris!'; e.hullStatus.style.color = '#fbbf24'; }
       } else {
-        if (hullStatus) {
+        if (e.hullStatus) {
           if (algaeLevel > 0.05) {
             const dragPct = Math.round(algaeLevel * 50);
-            hullStatus.textContent = `⚠️ Scum Drag (-${dragPct}% Speed)`;
-            hullStatus.style.color = '#fed7aa';
+            e.hullStatus.textContent = `⚠️ Scum Drag (-${dragPct}% Speed)`;
+            e.hullStatus.style.color = '#fed7aa';
           } else {
-            hullStatus.textContent = 'Solid Oak Hull ✨';
-            hullStatus.style.color = '#94a3b8';
+            e.hullStatus.textContent = 'Solid Oak Hull ✨';
+            e.hullStatus.style.color = '#94a3b8';
           }
         }
       }
     }
 
     // 1d. Bog Behemoth Boss Status & Shield Card
-    const bossCard = document.getElementById('boss-card');
-    if (bossCard) {
+    if (e.bossCard) {
       if (bossInfo && bossInfo.isAlive) {
-        bossCard.classList.remove('hidden');
-        const hpVal = document.getElementById('boss-hp-val');
-        const hpBar = document.getElementById('boss-hp-bar');
-        const statusText = document.getElementById('boss-status-text');
-
+        e.bossCard.classList.remove('hidden');
         const hpPct = Math.max(0, Math.min(100, Math.round((bossInfo.health / bossInfo.maxHealth) * 100)));
-        if (hpVal) hpVal.textContent = `${bossInfo.health} / ${bossInfo.maxHealth} HP`;
-        if (hpBar) {
-          hpBar.style.width = `${hpPct}%`;
-          if (bossInfo.isShielded) {
-            hpBar.className = 'progress-fill boss-fill shielded';
-          } else {
-            hpBar.className = 'progress-fill boss-fill vulnerable';
-          }
+        if (e.bossHpVal) e.bossHpVal.textContent = `${bossInfo.health} / ${bossInfo.maxHealth} HP`;
+        if (e.bossHpBar) {
+          e.bossHpBar.style.width = `${hpPct}%`;
+          e.bossHpBar.className = bossInfo.isShielded ? 'progress-fill boss-fill shielded' : 'progress-fill boss-fill vulnerable';
         }
-
-        if (statusText) {
+        if (e.bossStatusText) {
           if (bossInfo.isShielded) {
-            statusText.textContent = `🛡️ SHIELDED (Rescue ${bossInfo.gnomesRescued}/${bossInfo.gnomesRequired} Gnomes)`;
-            statusText.style.color = '#fde047';
+            e.bossStatusText.textContent = `🛡️ SHIELDED (Rescue ${bossInfo.gnomesRescued}/${bossInfo.gnomesRequired} Gnomes)`;
+            e.bossStatusText.style.color = '#fde047';
           } else {
-            statusText.textContent = hasAllGnomes
-              ? '⚔️ VULNERABLE to BIG BELL HIT [Key E]!'
-              : '⚔️ VULNERABLE — Rescue gnomes for Big Bell Hit!';
-            statusText.style.color = '#4ade80';
+            e.bossStatusText.textContent = hasAllGnomes ? '⚔️ VULNERABLE to BIG BELL HIT [Key E]!' : '⚔️ VULNERABLE — Rescue gnomes for Big Bell Hit!';
+            e.bossStatusText.style.color = '#4ade80';
           }
         }
       } else {
-        bossCard.classList.add('hidden');
+        e.bossCard.classList.add('hidden');
       }
     }
 
     // 1e. Big Bell Hit Button State
-    const bigBellBtn = document.getElementById('btn-big-bell');
-    const bigBellRing = document.getElementById('big-bell-cooldown-ring');
-    const bigBellSub = document.getElementById('big-bell-sub');
-    if (bigBellBtn && bigBellRing && bigBellSub) {
+    if (e.bigBellBtn && e.bigBellRing && e.bigBellSub) {
       if (!hasAllGnomes) {
-        bigBellBtn.classList.add('locked');
-        bigBellBtn.classList.remove('ready');
-        bigBellSub.textContent = '🔒 NEED FULL SQUAD';
-        bigBellRing.style.height = '0%';
+        e.bigBellBtn.classList.add('locked');
+        e.bigBellBtn.classList.remove('ready');
+        e.bigBellSub.textContent = '🔒 NEED FULL SQUAD';
+        e.bigBellRing.style.height = '0%';
       } else {
-        bigBellBtn.classList.remove('locked');
+        e.bigBellBtn.classList.remove('locked');
         if (bigBellCooldownRatio >= 1.0) {
-          bigBellBtn.classList.add('ready');
-          bigBellSub.textContent = '[E] READY TO STRIKE! ✨';
-          bigBellRing.style.height = '0%';
+          e.bigBellBtn.classList.add('ready');
+          e.bigBellSub.textContent = '[E] READY TO STRIKE! ✨';
+          e.bigBellRing.style.height = '0%';
         } else {
-          bigBellBtn.classList.remove('ready');
+          e.bigBellBtn.classList.remove('ready');
           const pct = Math.round((1.0 - bigBellCooldownRatio) * 100);
-          bigBellSub.textContent = `RECHARGING (${pct}%)`;
-          bigBellRing.style.height = `${pct}%`;
+          e.bigBellSub.textContent = `RECHARGING (${pct}%)`;
+          e.bigBellRing.style.height = `${pct}%`;
         }
       }
     }
 
     // 2. Crew Slots & Perks
-    const crewVal = document.getElementById('crew-count');
-    if (crewVal) crewVal.textContent = `${crewCount} / 4`;
-
-    const slotPip = document.getElementById('slot-pip');
-    const slotBarnaby = document.getElementById('slot-barnaby');
-    const slotClover = document.getElementById('slot-clover');
-    const perksText = document.getElementById('active-perks');
+    if (e.crewCount) e.crewCount.textContent = `${crewCount} / 4`;
 
     let perksList = [];
     for (const g of rescuedGnomes) {
-      if (g.name === 'Pip' && slotPip) {
-        slotPip.textContent = '🟡';
-        slotPip.classList.add('active');
-        perksList.push('Lookout Range');
-      }
-      if (g.name === 'Barnaby' && slotBarnaby) {
-        slotBarnaby.textContent = '🟢';
-        slotBarnaby.classList.add('active');
-        perksList.push('Engine Boost');
-      }
-      if (g.name === 'Clover' && slotClover) {
-        slotClover.textContent = '🟣';
-        slotClover.classList.add('active');
-        perksList.push('Quick Chime');
-      }
+      if (g.name === 'Pip' && e.slotPip) { e.slotPip.textContent = '🟡'; e.slotPip.classList.add('active'); perksList.push('Lookout Range'); }
+      if (g.name === 'Barnaby' && e.slotBarnaby) { e.slotBarnaby.textContent = '🟢'; e.slotBarnaby.classList.add('active'); perksList.push('Engine Boost'); }
+      if (g.name === 'Clover' && e.slotClover) { e.slotClover.textContent = '🟣'; e.slotClover.classList.add('active'); perksList.push('Quick Chime'); }
     }
 
-    if (perksText) {
-      if (onboardCount > 0) {
-        perksText.textContent = `⚓ Return to Pier to offload crew (${onboardCount} onboard)`;
-        perksText.style.color = '#34d399';
-      } else if (perksList.length > 0) {
-        perksText.textContent = `Perks: ${perksList.join(' • ')}`;
-        perksText.style.color = '';
-      } else {
-        perksText.textContent = 'Rescue stranded gnomes!';
-        perksText.style.color = '';
-      }
+    if (e.perksText) {
+      if (onboardCount > 0) { e.perksText.textContent = `⚓ Return to Pier to offload crew (${onboardCount} onboard)`; e.perksText.style.color = '#34d399'; }
+      else if (perksList.length > 0) { e.perksText.textContent = `Perks: ${perksList.join(' • ')}`; e.perksText.style.color = ''; }
+      else { e.perksText.textContent = 'Rescue stranded gnomes!'; e.perksText.style.color = ''; }
     }
 
     // 3. Bell Cooldown Ring
-    const bellRing = document.getElementById('bell-cooldown-ring');
-    const bellBtn = document.getElementById('btn-bell');
-    if (bellRing && bellBtn) {
-      if (bellCooldownRatio >= 1.0) {
-        bellRing.style.height = '0%';
-        bellBtn.classList.add('ready');
-      } else {
-        bellRing.style.height = `${(1.0 - bellCooldownRatio) * 100}%`;
-        bellBtn.classList.remove('ready');
-      }
+    if (e.bellRing && e.bellBtn) {
+      if (bellCooldownRatio >= 1.0) { e.bellRing.style.height = '0%'; e.bellBtn.classList.add('ready'); }
+      else { e.bellRing.style.height = `${(1.0 - bellCooldownRatio) * 100}%`; e.bellBtn.classList.remove('ready'); }
     }
 
     // 4. Clean Boat Button State
-    const cleanBtn = document.getElementById('btn-clean');
-    const cleanSub = document.getElementById('clean-penalty');
-    if (cleanBtn && cleanSub) {
+    if (e.cleanBtn && e.cleanSub) {
       if (algaeLevel > 0.02) {
         const penaltyPercent = Math.round(algaeLevel * 55);
-        cleanBtn.classList.add('fouled');
-        cleanSub.textContent = `FOULED: -${penaltyPercent}% SPEED`;
-        cleanSub.style.color = '#fecaca';
+        e.cleanBtn.classList.add('fouled');
+        e.cleanSub.textContent = `FOULED: -${penaltyPercent}% SPEED`;
+        e.cleanSub.style.color = '#fecaca';
       } else {
-        cleanBtn.classList.remove('fouled');
-        cleanSub.textContent = 'HULL CLEAN ✨';
-        cleanSub.style.color = '#bae6fd';
+        e.cleanBtn.classList.remove('fouled');
+        e.cleanSub.textContent = 'HULL CLEAN ✨';
+        e.cleanSub.style.color = '#bae6fd';
       }
     }
   }
@@ -753,7 +727,8 @@ export class HUD {
     if (bossStatus) bossStatus.textContent = bossDefeated ? 'DEFEATED' : 'PURGED';
 
     const gnomesVal = document.getElementById('vic-gnomes-val');
-    if (gnomesVal) gnomesVal.textContent = `${rescuedGnomes} / ${totalGnomes}`;
+    const displayGnomes = Math.min(rescuedGnomes, totalGnomes);
+    if (gnomesVal) gnomesVal.textContent = `${displayGnomes} / ${totalGnomes}`;
 
     const scumVal = document.getElementById('vic-scum-val');
     if (scumVal) scumVal.textContent = `${scumDeposited} / ${totalScum || scumDeposited}`;
@@ -808,13 +783,11 @@ export class HUD {
 
   updateSpells(equippedSpells = []) {
     for (let i = 0; i < 4; i++) {
-      const slotEl = document.getElementById(`spell-slot-${i}`);
-      if (!slotEl) continue;
+      const cached = this._spellSlots[i];
+      if (!cached || !cached.slot) continue;
 
       const spell = equippedSpells[i];
-      const iconEl = slotEl.querySelector('.spell-icon');
-      const cdOverlay = slotEl.querySelector('.spell-cooldown-overlay');
-      const cdText = slotEl.querySelector('.spell-cooldown-text');
+      const { slot: slotEl, icon: iconEl, cdOverlay, cdText } = cached;
 
       if (spell) {
         slotEl.classList.remove('empty');
